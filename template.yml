@@ -1,0 +1,84 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Example of processing messages on an SQS queue with Lambda
+Resources:
+  MyOtherLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: MyOtherFunction
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${MyOtherFunction}
+      RetentionInDays: 30
+
+  MyLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: MySQSQueueFunctionA
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${MySQSQueueFunctionA}
+      RetentionInDays: 30
+
+  MySqsQueue:
+    Type: AWS::SQS::Queue
+
+  MySQSQueueFunctionA:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index.handler
+      CodeUri: code
+      Runtime: nodejs12.x
+      Role:
+        Fn::GetAtt: MyOtherFunctionRole.Arn
+      Events:
+        MySQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt MySqsQueue.Arn
+            BatchSize: 10
+  
+  MyOtherFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index.handler
+      CodeUri: othercode
+      Runtime: nodejs12.x
+      Role:
+        Fn::GetAtt: MyOtherFunctionRole.Arn
+
+  MyOtherFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Provides permissions required by BankErrorStreamProcessor
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: "WriteToS3ErrorBucket"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:GetBucketLocation"
+                  - "s3:ListBucket"
+                  - "s3:ListMultipartUploadParts"
+                  - "s3:ListBucketMultipartUploads"
+                  - "s3:AbortMultipartUpload"
+                  - "s3:PutObject"
+                  - "s3:GetObject"
+                  - "s3:AbortMultipartUpload"
+                  - "athena:GetWorkGroup"
+                  - "athena:StartQueryExecution"
+                  - "athena:StopQueryExecution"
+                  - "athena:GetQueryExecution"
+                  - "athena:GetQueryResults"
+                  - "glue:GetTable"
+                  - "sqs:*"
+                Resource:
+                  - "*"
